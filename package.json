@@ -1,0 +1,16 @@
+{
+  "name": "get-biji-api",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Monorepo for biji.com clients: shared API package, CLI, and MCP server",
+  "packageManager": "pnpm@10.31.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev:cli": "pnpm --filter @biji/cli dev",
+    "dev:mcp": "pnpm --filter @biji/mcp dev",
+    "clean": "pnpm -r exec rm -rf dist"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "@biji/cli",
+  "version": "0.1.0",
+  "description": "CLI for Get笔记 (biji.com) — write / link / search / edit notes from your terminal",
+  "main": "dist/cli.js",
+  "bin": {
+    "biji": "dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "biji",
+    "get-biji",
+    "notes",
+    "cli",
+    "note-taking",
+    "markdown"
+  ],
+  "license": "ISC",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@biji/client": "workspace:*",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
