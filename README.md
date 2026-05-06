@@ -63,7 +63,12 @@ echo "笔记内容" | biji write
 biji search "关键词" -n 15                  # 关键词全文搜索
 biji get <prime_id>                          # 拉取并打印某条笔记
 biji edit <id>                               # 用 $EDITOR 编辑
-biji rm <prime_id>                           # 移到回收站
+biji rm <prime_id>                           # 删除笔记
+
+biji recycle list                            # 列出回收站
+biji recycle restore <note_id...>            # 还原笔记
+biji recycle delete  <note_id...> -y         # 永久删除（不可逆）
+biji recycle clear   -y                      # 清空回收站（不可逆）
 
 biji link "https://example.com/article"     # AI 解析链接生成笔记（流式）
 biji link --quiet --json <url>

@@ -9,6 +9,7 @@ import { registerEditCommand } from "./commands/edit.js";
 import { registerGetCommand } from "./commands/get.js";
 import { registerRmCommand } from "./commands/rm.js";
 import { registerChatCommand } from "./commands/chat.js";
+import { registerRecycleCommand } from "./commands/recycle.js";
 
 const program = new Command();
 program
@@ -26,6 +27,7 @@ registerEditCommand(program);
 registerGetCommand(program);
 registerRmCommand(program);
 registerChatCommand(program);
+registerRecycleCommand(program);
 
 program.parseAsync(process.argv).catch((err) => {
   console.error("Error:", err.message || err);

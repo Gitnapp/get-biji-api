@@ -111,6 +111,13 @@ export async function deleteNote(primeId: string) {
 
 // ──────────────────── Recycle Bin ────────────────────
 
+/** List notes in the recycle bin. Returns { c: { list: [...], total_items: N } }. */
+export async function listRecycledNotes(page = 1, pageSize = 20) {
+  return request(NOTES_API, "/voicenotes/web/notes/recycle", {
+    params: { page, page_size: pageSize },
+  });
+}
+
 export async function searchRecycledNotes(query?: string) {
   return request(NOTES_API, "/voicenotes/web/notes/recycle/search", {
     params: query ? { query } : {},
