@@ -111,29 +111,39 @@ export async function deleteNote(primeId: string) {
 
 // ──────────────────── Recycle Bin ────────────────────
 
-/** List notes in the recycle bin. Returns { c: { list: [...], total_items: N } }. */
-export async function listRecycledNotes(page = 1, pageSize = 20) {
-  return request(NOTES_API, "/voicenotes/web/notes/recycle", {
-    params: { page, page_size: pageSize },
-  });
+export interface RecycleListOptions {
+  limit?: number;
+  sinceId?: string;
+  range?: 0 | 1;
+  search?: string;
 }
 
-export async function searchRecycledNotes(query?: string) {
+export async function listRecycledNotes(options: RecycleListOptions = {}) {
   return request(NOTES_API, "/voicenotes/web/notes/recycle/search", {
-    params: query ? { query } : {},
+    method: "POST",
+    body: {
+      search: options.search ?? "",
+      limit: options.limit ?? 20,
+      since_id: options.sinceId ?? "",
+      range: options.range ?? 1,
+    },
   });
 }
 
-export async function recycleOpBatch(noteIds: string[], op: "restore" | "delete") {
+export async function searchRecycledNotes(query = "", options: Omit<RecycleListOptions, "search"> = {}) {
+  return listRecycledNotes({ ...options, search: query });
+}
+
+export async function recycleOpBatch(ids: string[], op: "resume" | "del") {
   return request(NOTES_API, "/voicenotes/web/notes/recycle/op/batch", {
     method: "POST",
-    body: { note_ids: noteIds, op },
+    body: { ids_str: ids, op },
   });
 }
 
 export async function recycleClear() {
   return request(NOTES_API, "/voicenotes/web/notes/recycle/op/clear", {
-    method: "POST",
+    method: "DELETE",
   });
 }
 

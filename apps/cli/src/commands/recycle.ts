@@ -8,12 +8,26 @@ interface RecycledNote {
   content?: string;
   update_time?: string;
   delete_time?: string;
+  updated_at?: string;
+  created_at?: string;
 }
 
 function snippet(s: string | undefined, max = 80): string {
   if (!s) return "";
   const flat = s.replace(/<\/?hl>/g, "").replace(/\s+/g, " ").trim();
   return flat.length > max ? flat.slice(0, max) + "…" : flat;
+}
+
+async function fetchRecyclePage(page: number, limit: number) {
+  let sinceId = "";
+  let res: { c?: { list?: RecycledNote[]; total_items?: number; has_more?: boolean } } = {};
+  for (let i = 0; i < page; i++) {
+    res = (await listRecycledNotes({ limit, sinceId, range: 1 })) as typeof res;
+    const items = res.c?.list ?? [];
+    sinceId = items[items.length - 1]?.note_id ?? "";
+    if (!sinceId) break;
+  }
+  return res;
 }
 
 export function registerRecycleCommand(program: Command): void {
@@ -28,9 +42,9 @@ export function registerRecycleCommand(program: Command): void {
     .option("-p, --page <num>", "page number", "1")
     .option("--json", "output raw API response")
     .action(async (opts: { limit: string; page: string; json?: boolean }) => {
-      const res = (await listRecycledNotes(Number(opts.page), Number(opts.limit))) as {
-        c?: { list?: RecycledNote[]; total_items?: number };
-      };
+      const limit = Number(opts.limit);
+      const page = Number(opts.page);
+      const res = await fetchRecyclePage(page, limit);
       if (opts.json) {
         console.log(JSON.stringify(res, null, 2));
         return;
@@ -44,7 +58,7 @@ export function registerRecycleCommand(program: Command): void {
       console.log(`Recycle bin: ${total} total (showing ${items.length}):\n`);
       for (const n of items) {
         console.log(`• ${n.title || "(untitled)"}`);
-        console.log(`  ${n.note_id || ""}  ${n.prime_id ? `[${n.prime_id}]  ` : ""}${n.delete_time || n.update_time || ""}`);
+        console.log(`  ${n.note_id || ""}  ${n.prime_id ? `[${n.prime_id}]  ` : ""}${n.delete_time || n.update_time || n.updated_at || n.created_at || ""}`);
         const body = snippet(n.content);
         if (body) console.log(`  ${body}`);
         console.log("");
@@ -53,9 +67,9 @@ export function registerRecycleCommand(program: Command): void {
 
   recycle
     .command("restore <ids...>")
-    .description("Restore note(s) from recycle bin by note_id")
+    .description("Restore note(s) from recycle bin by prime_id")
     .action(async (ids: string[]) => {
-      const res = await recycleOpBatch(ids, "restore");
+      const res = await recycleOpBatch(ids, "resume");
       const code = (res as { h?: { c?: number } })?.h?.c ?? -1;
       if (code === 0) {
         for (const id of ids) console.log(`✓ ${id} restored`);
@@ -74,7 +88,7 @@ export function registerRecycleCommand(program: Command): void {
         console.error(`This permanently deletes ${ids.length} note(s). Re-run with --yes to confirm.`);
         process.exit(1);
       }
-      const res = await recycleOpBatch(ids, "delete");
+      const res = await recycleOpBatch(ids, "del");
       const code = (res as { h?: { c?: number } })?.h?.c ?? -1;
       if (code === 0) {
         for (const id of ids) console.log(`✓ ${id} permanently deleted`);

@@ -197,9 +197,9 @@ server.tool(
 server.tool(
   "restore_recycled_notes",
   "Restore notes from recycle bin",
-  { note_ids: z.array(z.string()).describe("Note IDs to restore") },
+  { note_ids: z.array(z.string()).describe("Note prime_ids to restore") },
   async ({ note_ids }) => {
-    const res = await api.recycleOpBatch(note_ids, "restore");
+    const res = await api.recycleOpBatch(note_ids, "resume");
     return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
   }
 );
@@ -207,9 +207,9 @@ server.tool(
 server.tool(
   "delete_recycled_notes",
   "Permanently delete notes from recycle bin",
-  { note_ids: z.array(z.string()).describe("Note IDs to permanently delete") },
+  { note_ids: z.array(z.string()).describe("Note prime_ids to permanently delete") },
   async ({ note_ids }) => {
-    const res = await api.recycleOpBatch(note_ids, "delete");
+    const res = await api.recycleOpBatch(note_ids, "del");
     return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
   }
 );
