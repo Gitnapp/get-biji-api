@@ -12,3 +12,5 @@ dist/
 
 # personal artifacts produced by scripts/
 biji-import-progress.json
+# capture profile + jsonl logs live in /tmp; only node_modules inside capture/ needs ignoring
+# (covered by top-level node_modules/ rule)

@@ -75,7 +75,7 @@ export async function getGeneratingCount() {
 }
 
 export async function getExportOptions() {
-  return request(NOTES_API, "/voicenotes/web/notes/export-options");
+  return request(LEGACY_API, "/voicenotes/web/notes/export-options");
 }
 
 export async function getPromptTemplates() {
@@ -90,7 +90,7 @@ export async function createNote(params: Record<string, unknown>) {
 }
 
 export async function createNoteInTopic(params: Record<string, unknown>) {
-  return request(NOTES_API, "/voicenotes/web/topics/notes", {
+  return request(LEGACY_API, "/voicenotes/web/topics/notes", {
     method: "POST",
     body: params,
   });
@@ -285,6 +285,59 @@ export async function moveToDirectory(resourceIds: string[], directoryId: string
   });
 }
 
+/**
+ * Remove a resource from a KB topic ("移出知识库"). The underlying note stays in
+ * the user's "all notes" — only its topic binding is detached.
+ *
+ * @param resourceId  numeric `resources[].id` from {@link listKbTopicResources}
+ * @param topicId     numeric topic id
+ */
+export async function removeResourceFromTopic(resourceId: number | string, topicId: number | string) {
+  return request(OPEN_API, "/v1/web/topic/resource/delete", {
+    method: "DELETE",
+    body: { id: Number(resourceId), topic_id: Number(topicId) },
+  });
+}
+
+/** Move a resource between two KB topics. Target directory must belong to the target topic. */
+export async function moveResourceToTopic(
+  resourceId: number | string,
+  fromTopicId: number | string,
+  targetTopicId: number | string,
+  targetDirectoryId: number | string,
+) {
+  return request(OPEN_API, "/v1/web/topic/resource/move/topic", {
+    method: "POST",
+    body: {
+      resource_id: Number(resourceId),
+      topic_id: Number(fromTopicId),
+      target_topic_id: Number(targetTopicId),
+      target_topic_dir_id: Number(targetDirectoryId),
+    },
+  });
+}
+
+/**
+ * Attach one or more existing notes to a KB topic directory.
+ * Mirrors the biji.com "加入笔记本" action — the notes stay in their original
+ * location and become a resource inside the topic directory.
+ *
+ * @param noteIds      one or more note_id values (from `note.note_id`, NOT prime_id)
+ * @param topicId      numeric topic id; see {@link listKbManagedTopics} → list[].id
+ * @param directoryId  directory id under the topic; use topic.root_dir.id for the root
+ */
+export async function importNotesToTopic(
+  noteIds: string | string[],
+  topicId: number | string,
+  directoryId: number | string,
+) {
+  const ids = Array.isArray(noteIds) ? noteIds.join(",") : noteIds;
+  return request(LEGACY_API, "/voicenotes/web/topics/import/notes", {
+    method: "POST",
+    body: { ids, topic_id: Number(topicId), directory_id: Number(directoryId) },
+  });
+}
+
 // ──────────────────── Follow / Watch ────────────────────
 
 export async function listFollows() {
@@ -349,17 +402,61 @@ export async function listTeamMembers(teamId: string, page = 1, pageSize = 20) {
 
 // ──────────────────── Sync / Export ────────────────────
 
+export type ExportFormat = "pdf" | "docx" | "md" | "mp3";
+
+export interface ExportTask {
+  id: string;
+  type: ExportFormat | string;
+  /** Presigned download URL — populated once `status === "success"`. */
+  access_url: string;
+  filename: string;
+  status: "scheduled" | "running" | "success" | "failed" | string;
+  finished: boolean;
+  total: number;
+  create_time: number;
+  update_time: number;
+  result?: { percent?: number; success?: number; failed?: number; pending?: number };
+}
+
 export async function listExportTasks(latest?: string) {
-  return request(NOTES_API, "/voicenotes/web/sync/export/tasks", {
+  return request<{ c?: ExportTask[] }>(LEGACY_API, "/voicenotes/web/export/tasks", {
     params: latest ? { latest } : {},
   });
 }
 
-export async function createExportTask(noteIds: string[], format?: string) {
-  return request(NOTES_API, "/voicenotes/web/sync/export/create", {
+/** Create an export task. Server returns the task id; poll {@link getExportTask} for the access_url. */
+export async function createExportTask(noteIds: string[], type: ExportFormat) {
+  return request<{ c?: ExportTask }>(LEGACY_API, "/voicenotes/web/export/tasks", {
     method: "POST",
-    body: { note_ids: noteIds, format },
+    body: { type, note_ids: noteIds },
   });
+}
+
+export async function getExportTask(taskId: string) {
+  return request<{ c?: ExportTask }>(LEGACY_API, `/voicenotes/web/export/tasks/${taskId}`);
+}
+
+/**
+ * Poll an export task until it finishes (or `timeoutMs` elapses).
+ * Returns the final task — `access_url` is the presigned OSS download link.
+ */
+export async function waitForExportTask(
+  taskId: string,
+  options: { pollIntervalMs?: number; timeoutMs?: number } = {},
+): Promise<ExportTask> {
+  const start = Date.now();
+  const interval = options.pollIntervalMs ?? 1000;
+  const timeout = options.timeoutMs ?? 120000;
+  while (true) {
+    const resp = await getExportTask(taskId);
+    const task = resp.c;
+    if (!task) throw new Error(`export task ${taskId} not found`);
+    if (task.finished || task.status === "success" || task.status === "failed") return task;
+    if (Date.now() - start > timeout) {
+      throw new Error(`export task ${taskId} timed out after ${timeout}ms (last status: ${task.status})`);
+    }
+    await new Promise((r) => setTimeout(r, interval));
+  }
 }
 
 export async function listArchiveTasks(source?: string) {
@@ -478,24 +575,28 @@ export async function createTopicNoteStream(params: Record<string, unknown>, opt
 }
 
 export interface AiAnalyzeLinkOptions extends SseOptions {
-  prompt_template_id?: string;
+  /** Custom instruction to steer the AI summary. Sent as the `content` field. */
+  prompt?: string;
+  /** Numeric topic id (string form, e.g. "3623874"). Required to drop into a KB topic. */
   topic_id?: string;
+  /** Directory id under the topic. When parsing into a KB topic root, pass the topic's `root_dir.id`. */
+  topic_directory_id?: string;
   client_note_id?: string;
 }
 
 export async function aiAnalyzeLink(url: string, options?: AiAnalyzeLinkOptions): Promise<SseResult> {
   const clientNoteId = options?.client_note_id ?? globalThis.crypto.randomUUID();
   const body: Record<string, unknown> = {
-    attachments: [{ size: 100, type: "link", title: "", url }],
-    content: "",
+    attachments: [{ size: 100, type: "link", url }],
+    content: options?.prompt ?? "",
     entry_type: "ai",
     note_type: "link",
     source: "web",
-    prompt_template_id: options?.prompt_template_id ?? "",
     client_note_id: clientNoteId,
   };
   const path = options?.topic_id ? "/voicenotes/web/topics/notes/stream" : "/voicenotes/web/notes/stream";
   if (options?.topic_id) body.topic_id = options.topic_id;
+  if (options?.topic_directory_id) body.topic_directory_id = options.topic_directory_id;
   return requestSSE(LEGACY_API, path, body, { onChunk: options?.onChunk });
 }
 
@@ -697,6 +798,195 @@ export async function searchKnowledgeBooks(query: string, page = 1, pageSize = 2
   return request(NOTES_API, "/knowledge/v1/web/topic/mine/search/list", {
     params: { query, page, page_size: pageSize },
   });
+}
+
+/**
+ * List the user-managed topics shown under the "知识库" sidebar on the web app.
+ * Different endpoint from {@link listMyTopics} — this one is what biji.com itself
+ * uses to render the KB tree, and returns extras like `root_dir`, `extend_data`,
+ * `config.file_max_size`, `last_update_time_desc`, etc.
+ */
+export async function listKbManagedTopics(page = 1, size = 50, isSelection = 0) {
+  return request(OPEN_API, "/v1/web/topic/list/manager", {
+    params: { is_selection: isSelection, page, size },
+    extraHeaders: { "X-Av": "1.2.2" },
+  });
+}
+
+/**
+ * List the resources (notes / files) inside one KB topic directory.
+ *
+ * @param topicIdAlias  short id_alias from {@link listKbManagedTopics} (e.g. "pYLReLmJ")
+ * @param directoryId   numeric id of the directory; pass the topic's `root_dir.id` for the root level
+ */
+export async function listKbTopicResources(
+  topicIdAlias: string,
+  directoryId: number | string,
+  options: { page?: number; sort?: string; resourceType?: number } = {},
+) {
+  return request(OPEN_API, "/v1/web/topic/resource/list/mix", {
+    params: {
+      topic_id: -1,
+      topic_id_alias: topicIdAlias,
+      directory_id: String(directoryId),
+      sort: options.sort ?? "create_time_desc",
+      resource_type: options.resourceType ?? 0,
+      page: options.page ?? 1,
+    },
+  });
+}
+
+// ──────────────────── Local Media Upload (audio / video) ────────────────────
+
+export type LocalMediaKind = "audio" | "video";
+
+export interface LocalMediaTokenRequest {
+  /** Original filename, e.g. "podcast.mp3" or "clip.mp4". */
+  local_name: string;
+  /** Base64-encoded MD5 of the raw file bytes (= `crypto.createHash('md5').update(buf).digest('base64')`). */
+  md5: string;
+  size_byte: number;
+  /** Duration in milliseconds. Required by biji for both audio and video. */
+  duration_ms: number;
+  /** Container/codec hint, e.g. "mp3", "m4a", "wav", "mp4". */
+  type: string;
+}
+
+export interface LocalMediaTokenInfo {
+  object_key: string;
+  /** Aliyun OSS presigned PUT URL — upload raw bytes here. */
+  put_sign_url: string;
+  put_internal_sign_url?: string;
+  /** Base64-encoded OSS callback config — set as `x-oss-callback` header on the PUT. */
+  put_callback: string;
+  put_content_type: string;
+  /** Echo of the MD5 the server expects. Set as `Content-MD5` header on the PUT. */
+  put_md5: string;
+  /** Presigned GET URL — use this as the `attachments[0].url` in the subsequent AI stream call. */
+  get_url: string;
+  acl_private: boolean;
+}
+
+export interface LocalMediaTokenResponse {
+  is_uploaded: boolean;
+  uploaded_url: string;
+  token_info: LocalMediaTokenInfo;
+  file_id: string;
+}
+
+/** Step 1: request an OSS presigned URL for a local audio file. */
+export async function getLocalAudioUploadToken(req: LocalMediaTokenRequest) {
+  return request<{ c?: LocalMediaTokenResponse }>(LEGACY_API, "/voicenotes/web/notes/local_audio/token", {
+    method: "POST",
+    body: req,
+  });
+}
+
+/** Step 1 for video — biji uses a parallel endpoint, mirroring the audio shape. */
+export async function getLocalVideoUploadToken(req: LocalMediaTokenRequest) {
+  return request<{ c?: LocalMediaTokenResponse }>(LEGACY_API, "/voicenotes/web/notes/local_video/token", {
+    method: "POST",
+    body: req,
+  });
+}
+
+/**
+ * Step 2: PUT raw bytes to the Aliyun OSS presigned URL.
+ *
+ * Includes the OSS callback header that triggers biji's `notify.luojilab.com` webhook,
+ * which is what binds the uploaded file to `file_id` for the subsequent AI stream call.
+ */
+export async function uploadMediaToOss(token: LocalMediaTokenInfo, bytes: ArrayBuffer | Uint8Array): Promise<void> {
+  const view = bytes instanceof Uint8Array
+    ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    : new Uint8Array(bytes);
+  const resp = await fetch(token.put_sign_url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": token.put_content_type,
+      "Content-MD5": token.put_md5,
+      "x-oss-callback": token.put_callback,
+    },
+    body: view as unknown as BodyInit,
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`OSS PUT failed: ${resp.status} ${resp.statusText}\n${text.slice(0, 500)}`);
+  }
+}
+
+export interface AiAnalyzeLocalMediaOptions extends SseOptions {
+  /** Optional custom prompt (sent as the `content` field). */
+  prompt?: string;
+  /** Drop into a KB topic — pass numeric id (string form). */
+  topic_id?: string;
+  /** Directory inside the topic. Use the topic's `root_dir.id` for the root level. */
+  topic_directory_id?: string;
+  client_note_id?: string;
+  /** "custom" (default) lets biji infer; some flows use named template ids. */
+  prompt_template_id?: string;
+}
+
+function buildLocalMediaBody(
+  kind: LocalMediaKind,
+  token: LocalMediaTokenResponse,
+  durationMs: number,
+  options: AiAnalyzeLocalMediaOptions | undefined,
+): Record<string, unknown> {
+  const clientNoteId = options?.client_note_id ?? globalThis.crypto.randomUUID();
+  const body: Record<string, unknown> = {
+    prompt_template_id: options?.prompt_template_id ?? "custom",
+    note_id: "0",
+    file_id: token.file_id,
+    attachments: [
+      {
+        action_time: Date.now(),
+        size: 0,
+        type: kind,
+        title: "",
+        url: token.token_info.get_url,
+        duration: durationMs,
+      },
+    ],
+    content: options?.prompt ?? "",
+    entry_type: "ai",
+    note_type: kind === "audio" ? "local_audio" : "local_video",
+    source: "web",
+    client_note_id: clientNoteId,
+  };
+  if (options?.topic_id) body.topic_id = options.topic_id;
+  if (options?.topic_directory_id) body.topic_directory_id = options.topic_directory_id;
+  return body;
+}
+
+/**
+ * Step 3 for audio: kick off the SSE AI stream that does ASR + structured note generation.
+ * Pass the {@link LocalMediaTokenResponse} returned from {@link getLocalAudioUploadToken}
+ * AFTER you've completed the OSS PUT.
+ */
+export async function aiAnalyzeLocalAudio(
+  token: LocalMediaTokenResponse,
+  durationMs: number,
+  options?: AiAnalyzeLocalMediaOptions,
+): Promise<SseResult> {
+  const body = buildLocalMediaBody("audio", token, durationMs, options);
+  const path = options?.topic_id
+    ? "/voicenotes/web/topics/notes/stream_on_local_audio"
+    : "/voicenotes/web/notes/stream_on_local_audio";
+  return requestSSE(LEGACY_API, path, body, { onChunk: options?.onChunk });
+}
+
+/** Step 3 for video — same shape as audio with `local_video` paths. */
+export async function aiAnalyzeLocalVideo(
+  token: LocalMediaTokenResponse,
+  durationMs: number,
+  options?: AiAnalyzeLocalMediaOptions,
+): Promise<SseResult> {
+  const body = buildLocalMediaBody("video", token, durationMs, options);
+  const path = options?.topic_id
+    ? "/voicenotes/web/topics/notes/stream_on_local_video"
+    : "/voicenotes/web/notes/stream_on_local_video";
+  return requestSSE(LEGACY_API, path, body, { onChunk: options?.onChunk });
 }
 
 export async function getYodaPublicShare(shareId: string) {
