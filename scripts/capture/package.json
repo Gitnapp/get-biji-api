@@ -1,0 +1,15 @@
+{
+  "name": "biji-capture",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright capture script for reverse-engineering new biji.com API endpoints",
+  "main": "capture.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node capture.mjs"
+  },
+  "packageManager": "pnpm@10.31.0",
+  "dependencies": {
+    "playwright": "^1.60.0"
+  }
+}

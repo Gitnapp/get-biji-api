@@ -10,6 +10,9 @@ import { registerGetCommand } from "./commands/get.js";
 import { registerRmCommand } from "./commands/rm.js";
 import { registerChatCommand } from "./commands/chat.js";
 import { registerRecycleCommand } from "./commands/recycle.js";
+import { registerKbCommand } from "./commands/kb.js";
+import { registerUploadCommand } from "./commands/upload.js";
+import { registerExportCommand } from "./commands/export.js";
 
 const program = new Command();
 program
@@ -28,6 +31,9 @@ registerGetCommand(program);
 registerRmCommand(program);
 registerChatCommand(program);
 registerRecycleCommand(program);
+registerKbCommand(program);
+registerUploadCommand(program);
+registerExportCommand(program);
 
 program.parseAsync(process.argv).catch((err) => {
   console.error("Error:", err.message || err);
