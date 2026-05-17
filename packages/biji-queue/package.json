@@ -1,0 +1,33 @@
+{
+  "name": "@biji/queue",
+  "version": "0.1.0",
+  "description": "Local SQLite-backed job queue + background worker for biji.com batch jobs (link analysis, media upload).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "biji-queue-worker": "dist/bin/worker.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@biji/client": "workspace:*",
+    "better-sqlite3": "^11.10.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.9.3"
+  }
+}

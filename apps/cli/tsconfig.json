@@ -5,5 +5,8 @@
     "rootDir": "./src"
   },
   "include": ["src/**/*"],
-  "references": [{ "path": "../../packages/biji-client" }]
+  "references": [
+    { "path": "../../packages/biji-client" },
+    { "path": "../../packages/biji-queue" }
+  ]
 }

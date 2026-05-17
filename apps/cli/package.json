@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@biji/client": "workspace:*",
+    "@biji/queue": "workspace:*",
     "commander": "^12.1.0"
   },
   "devDependencies": {
