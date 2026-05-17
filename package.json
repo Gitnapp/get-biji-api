@@ -12,5 +12,8 @@
     "dev:cli": "pnpm --filter @biji/cli dev",
     "dev:mcp": "pnpm --filter @biji/mcp dev",
     "clean": "pnpm -r exec rm -rf dist"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
   }
 }

@@ -13,6 +13,7 @@ import { registerRecycleCommand } from "./commands/recycle.js";
 import { registerKbCommand } from "./commands/kb.js";
 import { registerUploadCommand } from "./commands/upload.js";
 import { registerExportCommand } from "./commands/export.js";
+import { registerQueueCommand } from "./commands/queue.js";
 
 const program = new Command();
 program
@@ -34,6 +35,7 @@ registerRecycleCommand(program);
 registerKbCommand(program);
 registerUploadCommand(program);
 registerExportCommand(program);
+registerQueueCommand(program);
 
 program.parseAsync(process.argv).catch((err) => {
   console.error("Error:", err.message || err);
