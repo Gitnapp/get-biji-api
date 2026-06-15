@@ -4,6 +4,16 @@
   "description": "Shared API client for biji.com — HTTP, JWT auto-refresh, SSE streaming",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gitnapp/get-biji-api.git",
+    "directory": "packages/biji-client"
+  },
+  "homepage": "https://github.com/Gitnapp/get-biji-api/tree/main/packages/biji-client#readme",
+  "bugs": "https://github.com/Gitnapp/get-biji-api/issues",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist/",
     "README.md",

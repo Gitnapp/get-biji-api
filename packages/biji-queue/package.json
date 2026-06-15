@@ -7,6 +7,16 @@
   "bin": {
     "biji-queue-worker": "dist/bin/worker.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gitnapp/get-biji-api.git",
+    "directory": "packages/biji-queue"
+  },
+  "homepage": "https://github.com/Gitnapp/get-biji-api/tree/main/packages/biji-queue#readme",
+  "bugs": "https://github.com/Gitnapp/get-biji-api/issues",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist/",
     "README.md",
@@ -23,7 +33,7 @@
   },
   "dependencies": {
     "@biji/client": "workspace:*",
-    "better-sqlite3": "^11.10.0"
+    "better-sqlite3": "^12.10.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

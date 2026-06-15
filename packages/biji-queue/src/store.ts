@@ -1,12 +1,34 @@
-import Database from "better-sqlite3";
+import type Database from "better-sqlite3";
 import { dbPath } from "./paths.js";
 import type { Job, JobKind, JobPayload, JobResult, JobStatus, LinkPayload, UploadPayload } from "./types.js";
 
 let _db: Database.Database | null = null;
+let _driver: typeof import("better-sqlite3") | null = null;
+
+/**
+ * Lazy-load the better-sqlite3 native addon. Importing it at module scope would
+ * crash any consumer that never touches the queue (e.g. the MCP server's other
+ * ~93 tools) when no prebuilt binary matches the host Node ABI. Loading it here
+ * means only queue operations pay that cost — and fail with a clear message.
+ */
+function loadDriver(): typeof import("better-sqlite3") {
+  if (_driver) return _driver;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    _driver = require("better-sqlite3") as typeof import("better-sqlite3");
+    return _driver;
+  } catch (e) {
+    throw new Error(
+      `queue subsystem unavailable: better-sqlite3 failed to load (${(e as Error).message}). ` +
+      `Use a Node version with prebuilt binaries (18-22) or install a C++ toolchain for a source build.`,
+    );
+  }
+}
 
 export function db(): Database.Database {
   if (_db) return _db;
-  _db = new Database(dbPath());
+  const Driver = loadDriver();
+  _db = new Driver(dbPath());
   _db.pragma("journal_mode = WAL");
   _db.pragma("busy_timeout = 5000");
   _db.exec(`

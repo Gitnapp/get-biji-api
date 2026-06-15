@@ -7,15 +7,15 @@ biji.com (Get笔记) 客户端套件 monorepo —— 共享 SDK + CLI + MCP serv
 ```
 .
 ├── apps/
-│   ├── cli/          @biji/cli   终端命令行 (biji)
-│   └── mcp/          @biji/mcp   stdio MCP server (get-biji-mcp)
+│   ├── cli/          @biji/cli       终端命令行 (biji)
+│   └── mcp/          biji-mcp    stdio MCP server (npx biji-mcp)
 ├── packages/
 │   └── biji-client/  @biji/client  共享 SDK：HTTP + JWT 自动刷新 + SSE 流
 ├── pnpm-workspace.yaml
 └── tsconfig.base.json
 ```
 
-依赖关系：`@biji/cli` 和 `@biji/mcp` 都通过 `workspace:*` 引用 `@biji/client`，后者集中管理 ~117 个 biji.com 端点函数和 auth 状态。新端点都从浏览器抓包逆向得到（见下文「逆向新端点」）。
+依赖关系：`@biji/cli` 和 `biji-mcp` 都通过 `workspace:*` 引用 `@biji/client`，后者集中管理 ~117 个 biji.com 端点函数和 auth 状态。新端点都从浏览器抓包逆向得到（见下文「逆向新端点」）。
 
 ## 安装与构建
 
@@ -155,7 +155,7 @@ biji queue show <id>                      # 单 job 完整 JSON
 
 ### 队列任务（MCP 端）
 
-MCP server 注册了 6 个工具，跟 CLI 共用同一个 `~/.config/get-biji/queue/queue.db` 和同一个 daemon —— Claude 在对话里一次扔 100 条 URL 进队，立刻返回，daemon 在后台跑完，Claude 不会被阻塞。daemon 跨 MCP/CLI 进程：MCP 触发 spawn 之后，关掉 Claude Desktop 也继续跑；之后 `biji queue status` / `biji queue list` 一样能查。
+MCP server 注册了 7 个工具，跟 CLI 共用同一个 `~/.config/get-biji/queue/queue.db` 和同一个 daemon —— Claude 在对话里一次扔 100 条 URL 进队，立刻返回，daemon 在后台跑完，Claude 不会被阻塞。daemon 跨 MCP/CLI 进程：MCP 触发 spawn 之后，关掉 Claude Desktop 也继续跑；之后 `biji queue status` / `biji queue list` 一样能查。
 
 | 工具 | 入参 | 说明 |
 |---|---|---|
@@ -203,7 +203,29 @@ REPL 内：`/quit` 退出，`/reset` 清空上下文（重置 parent_id）。
 
 ## MCP server 用法
 
-`@biji/mcp` 是 stdio MCP，注册了 ~81 个 biji 工具（笔记 / 标签 / topics / 知识库 / Yoda chat / AI 写作 / 媒体上传 / 导出 / Canvas 等）。
+`biji-mcp` 是 stdio MCP，注册了 ~100 个工具（笔记 / 标签 / topics / 知识库 / Yoda chat / AI 写作 / 媒体上传 / 导出 / Canvas + 7 个 queue 工具）。
+
+### 一键接入（推荐）
+
+`biji setup` 直接把 `get-biji` server 写进各 AI 客户端的配置文件（自动合并、先备份 `.bak`）：
+
+```bash
+biji setup add claude-code        # 也支持 claude-desktop / cursor / windsurf / cline / gemini
+biji setup add cursor --npx       # 用已发布的 `npx -y biji-mcp` 形式（默认用本地构建的绝对路径）
+biji setup list                   # 看所有客户端的配置路径 + 是否已配置
+biji setup remove claude-code     # 移除（同样先备份）
+
+# 不在内置清单里的客户端 —— 通用逃生口（顺带打印可手动粘贴的 snippet）
+biji setup add --file <config.json> --key mcpServers
+```
+
+默认写入的是「绝对 node 路径 + 本地 `apps/mcp/dist/index.js`」（对 Claude Desktop 这类不继承 shell PATH 的 GUI 应用最稳）。发布到 npm 后可改用 `--npx`，对应：
+
+```bash
+npx -y biji-mcp
+```
+
+### 手动配置
 
 `~/.config/Claude/claude_desktop_config.json`（或 Claude Code MCP 配置）：
 
@@ -211,14 +233,41 @@ REPL 内：`/quit` 退出，`/reset` 清空上下文（重置 parent_id）。
 {
   "mcpServers": {
     "get-biji": {
-      "command": "node",
-      "args": ["/absolute/path/to/get-biji-api/apps/mcp/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "biji-mcp"]
     }
   }
 }
 ```
 
 确保 `~/.config/get-biji/auth.json` 已就绪（先在 CLI 跑 `biji auth login` 即可）。
+
+## 诊断与自助文档
+
+```bash
+biji doctor                # 一屏体检：Node 版本 / MCP 构建 / auth 有效性 + 活体探测 / auth 文件权限 / queue / 已接入的 MCP 客户端
+biji doctor --offline      # 跳过对 biji.com 的活体请求
+biji doctor --json         # 机器可读；任一 ✗ 检查则 exit 1（适合 CI / 脚本）
+
+biji --ai                  # 打印面向 AI agent 的精简用法手册（等价 `biji ai`），让助手一次读懂全部命令
+```
+
+## 发布到 npm
+
+四个包都可发布（`publishConfig.access=public` 已设）。注意几个前提，否则 `npx biji-mcp` 装不起来：
+
+1. **`@biji` scope 归属**：`@biji/client` / `@biji/queue` / `@biji/cli` 是 scoped 包，发布前需在 npm 上创建并拥有 `@biji` org（或改成你自己的 username scope）。`biji-mcp` 是 unscoped（`get-biji-mcp` 已被他人占用，故改名）。
+2. **依赖顺序**：`pnpm pack/publish` 会把 `workspace:*` 改写成当前精确版本（如 `@biji/client@0.1.0`），所以必须**先发依赖再发上层**：`@biji/client` → `@biji/queue` → `biji-mcp` / `@biji/cli`。四包版本保持一致（当前都是 0.1.0），bump 时一起 re-pack 避免悬空精确 pin。
+3. **better-sqlite3 原生模块**：`@biji/queue` 依赖 `better-sqlite3`（native addon）。预编译二进制覆盖 **Node 18–22**；用户在这些版本上 `npx biji-mcp` 开箱即用。更高/更冷门的 Node 需要 C++ 工具链从源码编译。MCP server 已对此做降级——加载失败时只有 7 个 queue 工具不可用，其余 ~93 个工具照常启动（见 `packages/biji-queue/src/store.ts` 的惰性加载）。
+
+```bash
+npm login
+pnpm --filter @biji/client publish
+pnpm --filter @biji/queue  publish
+pnpm --filter biji-mcp     publish
+pnpm --filter @biji/cli    publish
+# dry-run 验证打包内容（不真发）：pnpm --filter biji-mcp pack
+```
 
 ## @biji/client SDK 集成
 

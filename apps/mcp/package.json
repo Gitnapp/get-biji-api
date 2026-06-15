@@ -1,10 +1,20 @@
 {
-  "name": "@biji/mcp",
-  "version": "1.0.0",
+  "name": "biji-mcp",
+  "version": "0.1.0",
   "description": "MCP server for Get笔记 (biji.com) - AI-driven note-taking app",
   "main": "dist/index.js",
   "bin": {
-    "get-biji-mcp": "dist/index.js"
+    "biji-mcp": "dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gitnapp/get-biji-api.git",
+    "directory": "apps/mcp"
+  },
+  "homepage": "https://github.com/Gitnapp/get-biji-api/tree/main/apps/mcp#readme",
+  "bugs": "https://github.com/Gitnapp/get-biji-api/issues",
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "dist/",

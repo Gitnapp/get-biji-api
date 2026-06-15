@@ -6,6 +6,16 @@
   "bin": {
     "biji": "dist/cli.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gitnapp/get-biji-api.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://github.com/Gitnapp/get-biji-api/tree/main/apps/cli#readme",
+  "bugs": "https://github.com/Gitnapp/get-biji-api/issues",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist/",
     "README.md",

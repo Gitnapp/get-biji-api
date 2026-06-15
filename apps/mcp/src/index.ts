@@ -21,7 +21,7 @@ function detectMediaKind(filePath: string): "audio" | "video" {
 
 const server = new McpServer({
   name: "get-biji",
-  version: "1.0.0",
+  version: "0.1.0",
   description: "MCP server for Get笔记 (biji.com) — AI-driven note-taking app",
 });
 
