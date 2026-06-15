@@ -802,11 +802,67 @@ server.tool(
 
 server.tool(
   "yoda_chat_stream",
-  "Send a message to Yoda AI and get streaming response. Returns the complete AI response.",
-  { body: z.record(z.string(), z.unknown()).describe("Chat stream params (e.g. session_id, content, message_type)") },
-  async ({ body }) => {
+  "Ask Yoda AI a question with RAG over your notes and return the complete answer. " +
+    "Pass just `question` to start a fresh session (the new session_id is returned), or pass `session_id` to continue an existing one. " +
+    "Scope flags (`notes`/`web`/`dedao`) control retrieval. `parent_id` is auto-resolved to the session's last answer for multi-turn continuity. " +
+    "Use `raw_body` only for advanced overrides of the upstream payload.",
+  {
+    question: z.string().describe("The question / message to send to Yoda AI"),
+    session_id: z.string().optional().describe("Existing session to continue. Omit to auto-create a new session (its id is returned)."),
+    notes: z.boolean().optional().default(true).describe("RAG over your notes (default: true)"),
+    web: z.boolean().optional().default(false).describe("Enable web search (default: false)"),
+    dedao: z.boolean().optional().default(false).describe("Enable Dedao (得到) knowledge base (default: false)"),
+    parent_id: z.string().optional().describe("Parent assistant message id for multi-turn continuity. Auto-resolved to the session's last answer when omitted."),
+    action: z.string().optional().default("next").describe("Upstream action (default: 'next')"),
+    mode: z.string().optional().default("AUTO").describe("Retrieval mode (default: 'AUTO')"),
+    raw_body: z.record(z.string(), z.unknown()).optional().describe("Advanced: extra fields shallow-merged over the constructed body (escape hatch for the full upstream schema)."),
+  },
+  async ({ question, session_id, notes, web, dedao, parent_id, action, mode, raw_body }) => {
+    // 1. Resolve session: continue the given one, or create a fresh session.
+    let sid = session_id;
+    let newSession = false;
+    if (!sid) {
+      const created = (await api.createYodaChat("")) as { c?: { id?: string; session?: { id?: string } } };
+      sid = created?.c?.id ?? created?.c?.session?.id;
+      if (!sid) {
+        return { isError: true, content: [{ type: "text", text: `Failed to create a Yoda session: ${JSON.stringify(created).slice(0, 300)}` }] };
+      }
+      newSession = true;
+    }
+    // 2. Resolve parent_id for continuity (last assistant message of the session).
+    let pid = parent_id ?? "";
+    if (!parent_id && !newSession) {
+      try {
+        const msgs = (await api.getYodaChatMessages(sid, undefined, 50)) as { c?: { items?: Array<{ role?: string; message_id?: string }> } };
+        const items = msgs?.c?.items ?? [];
+        for (let i = items.length - 1; i >= 0; i--) {
+          if (items[i].role === "assistant" && items[i].message_id) { pid = items[i].message_id as string; break; }
+        }
+      } catch { /* best-effort; fall back to empty parent */ }
+    }
+    // 3. Build the canonical body (mirrors the CLI `biji chat` payload), then
+    //    shallow-merge raw_body for advanced overrides.
+    const body: Record<string, unknown> = {
+      mode,
+      notes: { select_all: notes !== false },
+      web: Boolean(web),
+      dedao: Boolean(dedao),
+      study: false,
+      topics: {},
+      selected_resources: [],
+      parent_id: pid,
+      question,
+      action,
+      session_id: sid,
+      ...(raw_body ?? {}),
+    };
     const res = await api.yodaChatStream(body);
-    return { content: [{ type: "text", text: JSON.stringify({ ai_response: res.content, event_count: res.events.length }, null, 2) }] };
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ session_id: sid, new_session: newSession, ai_response: res.content, event_count: res.events.length }, null, 2),
+      }],
+    };
   }
 );
 
